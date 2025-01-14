@@ -169,3 +169,38 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# Poetry
+poetry.lock
+dist/
+.python-version
+
+# Coverage
+coverage.xml
+.coverage
+htmlcov/
+
+# Mac
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Ruff
+.ruff_cache/
+
+# Pre-commit
+.pre-commit-config.yaml
+
+# Local development
+*.env.local
+*.env.development.local
+*.env.test.local
+*.env.production.local
