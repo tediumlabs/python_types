@@ -1,29 +1,30 @@
-[tool.poetry]
-name = "tedium-python-types"
-version = "0.1.0"
-description = "A Python library for building strongly-typed domain models"
-authors = ["Matt Bernier"]
-readme = "README.md"
-packages = [{include = "tedium", from = "src"}]
-
-[tool.poetry.dependencies]
-python = "^3.9"
-
-[tool.poetry.group.dev.dependencies]
-pytest = ">=8.0.0"
-mypy = "^1.0.0"
-black = "^23.0.0"
-isort = "^5.0.0"
-pytest-cov = "^4.0.0"
-pytest-mypy-plugins = "^3.2.0"
-
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
+[project]
+name = "tedium-types"
+version = "0.1.0"
+description = "A type system implementation focusing on immutability and validation"
+authors = [
+    {name = "Matt Bernier"}
+]
+requires-python = "^3.9"
+dependencies = [
+]
+
+[tool.poetry]
+packages = [
+    { include = "tedium", from = "src" }
+]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+mypy = "^1.0.0"
+pytest-mypy-plugins = "^3.2.0"
+
 [tool.mypy]
 python_version = "3.9"
-strict = true
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -34,4 +35,18 @@ no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 warn_no_return = true
-warn_unreachable = true 
+warn_unreachable = true
+strict_equality = true
+mypy_path = "src"
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = "pytest"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v" 

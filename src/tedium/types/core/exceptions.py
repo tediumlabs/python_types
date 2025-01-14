@@ -3,15 +3,6 @@
 This module defines the exception hierarchy used throughout the type system.
 All custom exceptions inherit from TypeSystemError to allow catching all
 type-related errors with a single except clause.
-
-Note on Type Usage:
-    This module intentionally uses Python's built-in types (Dict, Any) rather than
-    our custom types because:
-    1. Exception context is an internal implementation detail
-    2. We need to interoperate with Python's exception system
-    3. Exception handling should be performant with minimal overhead
-    4. Context needs to hold arbitrary Python values for debugging
-    5. Avoiding circular dependencies (our types using exceptions that use our types)
 """
 
 from typing import Any, Dict
@@ -102,3 +93,55 @@ class ImmutabilityError(OperationError):
         """
         super().__init__(message, operation="modify", attribute=attribute, **context)
         self.attribute = attribute
+
+
+# Integer-specific exceptions
+class IntegerValidationError(ValidationError):
+    """Raised when a value cannot be validated as an integer."""
+
+    def __init__(self, value: Any, **context: Any) -> None:
+        """Initialize with invalid integer value.
+
+        Args:
+            value: The invalid value
+            **context: Additional validation context
+        """
+        message = f"Invalid value: {value}"
+        super().__init__(message, value, **context)
+
+
+class IntegerConversionError(ConversionError):
+    """Raised when a value cannot be converted to an integer."""
+
+    def __init__(self, value: Any, **context: Any) -> None:
+        """Initialize with conversion details.
+
+        Args:
+            value: The value that couldn't be converted
+            **context: Additional conversion context
+        """
+        message = f"Cannot convert '{value}' to integer"
+        super().__init__(message, value, int, **context)
+
+
+class IntegerOperationError(OperationError):
+    """Raised when an integer operation cannot be performed."""
+
+    def __init__(self, operation: str, left: Any, right: Any, **context: Any) -> None:
+        """Initialize with operation details."""
+        message = f"Cannot perform {operation} between {left} and {right}"
+        super().__init__(operation=operation, left=left, right=right, message=message)
+
+
+class IntegerOverflowError(IntegerOperationError):
+    """Raised when an integer operation would result in overflow."""
+
+    def __init__(self, operation: str, result: Any, **context: Any) -> None:
+        """Initialize with overflow details."""
+        message = f"Operation {operation} would overflow: {result}"
+        super().__init__(
+            operation=operation,
+            left=context.pop('left'),
+            right=context.pop('right'),
+            message=message
+        )

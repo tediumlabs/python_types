@@ -1,7 +1,5 @@
 """Tests for core type system exceptions."""
 
-import pytest
-
 from tedium.types.core.exceptions import (
     TypeSystemError,
     ValidationError,

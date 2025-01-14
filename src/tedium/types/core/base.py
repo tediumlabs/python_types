@@ -10,7 +10,8 @@ from __future__ import annotations
 import copy
 import json
 from functools import total_ordering
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeVar, Protocol, runtime_checkable
+from abc import ABC, abstractmethod
 
 from tedium.types.core.exceptions import (
     ValidationError,
@@ -18,52 +19,45 @@ from tedium.types.core.exceptions import (
     ImmutabilityError,
 )
 
+# Define return type for comparison operations
+ComparisonReturn = Any  # This represents bool | type(NotImplemented)
 
-T = TypeVar("T")
+
+@runtime_checkable
+class Comparable(Protocol):
+    """Protocol for types that support comparison operations."""
+    def __lt__(self, other: Any) -> ComparisonReturn: ...
+    def __gt__(self, other: Any) -> ComparisonReturn: ...
+    def __le__(self, other: Any) -> ComparisonReturn: ...
+    def __ge__(self, other: Any) -> ComparisonReturn: ...
 
 
-@total_ordering
-class BaseType(Generic[T]):
+T = TypeVar("T", bound=Comparable)
+
+
+class BaseType(Generic[T], ABC):
     """Base class for all types in the tedium type system.
 
-    This class provides core functionality that all types inherit:
-    - Immutability: Values cannot be changed after creation
-    - Validation: Values are validated on creation
-    - String conversion: Consistent string representation
-    - Comparison operations: Types can be compared and sorted
-    - JSON serialization: Types can be serialized to/from JSON
-    - Copy support: Types can be copied safely
-
-    Args:
-        value: The value to wrap in this type
-
-    Raises:
-        ValidationError: If the value fails validation
-        ConversionError: If the value cannot be converted to the required type
+    This class follows Python's comparison protocol by returning NotImplemented
+    for operations between incompatible types, allowing Python's type machinery
+    to handle the TypeError generation.
     """
 
     _value: T
 
     def __init__(self, value: T) -> None:
-        """Initialize the type with a value.
-
-        The value is validated and stored immutably.
-        """
         self.validate(value)
-        # Use object.__setattr__ to bypass immutability during init
         object.__setattr__(self, "_value", value)
 
+    @abstractmethod
     def validate(self, value: T) -> None:
         """Validate the value before storing it.
-
-        This base implementation only ensures the value is not None.
-        Subclasses should override this to add their own validation.
 
         Args:
             value: The value to validate
 
         Raises:
-            ValidationError: If the value is None
+            ValidationError: If validation fails
         """
         if value is None:
             raise ValidationError("Value cannot be None", value=value)
@@ -87,8 +81,13 @@ class BaseType(Generic[T]):
             value: New value
 
         Raises:
-            ImmutabilityError: Always, as modification is not allowed
+            ImmutabilityError: If attempting to modify after initialization
         """
+        # Allow setting _value during initialization
+        if name == "_value" and not hasattr(self, "_value"):
+            super().__setattr__(name, value)
+            return
+
         raise ImmutabilityError(
             f"Cannot modify {name} after initialization",
             attribute=name
@@ -113,28 +112,57 @@ class BaseType(Generic[T]):
     def __eq__(self, other: Any) -> bool:
         """Check if this type equals another value.
 
+        Following Python's protocol, returns NotImplemented for incompatible types.
+
         Args:
             other: Value to compare against
 
         Returns:
-            True if the values are equal, NotImplemented if types don't match
+            bool: True if values are equal
+            NotImplemented: If types are incompatible
         """
-        if not isinstance(other, BaseType):
+        if not isinstance(other, type(self)):
             return NotImplemented
         return bool(self._value == other._value)
 
-    def __lt__(self, other: Any) -> bool:
-        """Check if this type is less than another value.
+    def __lt__(self, other: Any) -> ComparisonReturn:
+        """Compare if this value is less than another value.
+
+        Following Python's protocol, returns NotImplemented for incompatible types.
 
         Args:
             other: Value to compare against
 
         Returns:
-            True if this value is less than other, NotImplemented if no match
+            bool | NotImplemented: True if this value is less than other, NotImplemented if incompatible
         """
-        if not isinstance(other, BaseType):
+        if not isinstance(other, type(self)):
             return NotImplemented
-        return bool(self._value < other._value)
+        return self._value < other._value
+
+    def __gt__(self, other: Any) -> bool:
+        """Compare if this value is greater than another value."""
+        if self.__class__ is BaseType:
+            return NotImplemented
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return bool(self._value > other._value)
+
+    def __le__(self, other: Any) -> bool:
+        """Compare if this value is less than or equal to another value."""
+        if self.__class__ is BaseType:
+            return NotImplemented
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return bool(self._value <= other._value)
+
+    def __ge__(self, other: Any) -> bool:
+        """Compare if this value is greater than or equal to another value."""
+        if self.__class__ is BaseType:
+            return NotImplemented
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return bool(self._value >= other._value)
 
     def __hash__(self) -> int:
         """Get hash value for use in sets and as dict keys.
@@ -194,3 +222,32 @@ class BaseType(Generic[T]):
             New instance with a deep copy of the value
         """
         return self.__class__(copy.deepcopy(self._value, memo))
+
+
+@total_ordering
+class ComparableType(BaseType[T]):
+    """Base class for types that support comparison operations."""
+
+    def __lt__(self, other: Any) -> Any:
+        """Compare if this value is less than another value."""
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return self._value < other._value
+
+    def __gt__(self, other: Any) -> bool:
+        """Compare if this value is greater than another value."""
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return bool(self._value > other._value)
+
+    def __le__(self, other: Any) -> bool:
+        """Compare if this value is less than or equal to another value."""
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return bool(self._value <= other._value)
+
+    def __ge__(self, other: Any) -> bool:
+        """Compare if this value is greater than or equal to another value."""
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return bool(self._value >= other._value)

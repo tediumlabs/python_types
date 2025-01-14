@@ -1,0 +1,1 @@
+"""Tedium types package."""

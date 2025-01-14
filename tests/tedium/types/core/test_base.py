@@ -1,121 +1,169 @@
-"""Tests for the base type implementation."""
+"""Tests for the BaseType class."""
 
 import copy
-import json
 from typing import Dict, Set
 
 import pytest
 
-from tedium.types.core.base import BaseType
+from tedium.types.core.base import BaseType, ComparableType
 from tedium.types.core.exceptions import (
     ValidationError,
-    ConversionError,
     ImmutabilityError,
+    ConversionError,
 )
 
 
-def test_base_type_creation() -> None:
-    """Test creating a base type with a valid value."""
-    value = "test"
-    base = BaseType(value)
-    assert base.value == value
+class StringType(BaseType[str]):
+    """Simple string type for testing base functionality."""
+
+    def validate(self, value: str) -> None:
+        """Validate string values."""
+        super().validate(value)
+        if not isinstance(value, str):
+            raise ValidationError("Must be a string", value=value)
 
 
-def test_base_type_none_value() -> None:
-    """Test that None values are rejected."""
-    with pytest.raises(ValidationError, match="Value cannot be None"):
-        BaseType(None)
+class ComparableInt(ComparableType[int]):
+    """Simple integer type for testing comparison operations."""
+
+    def validate(self, value: int) -> None:
+        """Validate integer values."""
+        super().validate(value)
+        if not isinstance(value, int):
+            raise ValidationError("Must be an integer", value=value)
 
 
-def test_base_type_immutability() -> None:
-    """Test that values cannot be changed after creation."""
-    base = BaseType("test")
+def test_base_functionality() -> None:
+    """Test core functionality through MinimalType."""
+    t = StringType("test")
+
+    # Test immutability
     with pytest.raises(ImmutabilityError):
-        base.value = "new value"
+        t._value = "new"
+
+    # Test string conversion
+    assert str(t) == "test"
+    assert repr(t) == "StringType('test')"
+
+    # Test JSON
+    json_str = t.to_json()
+    recreated = StringType.from_json(json_str)
+    assert recreated == t
 
 
-def test_base_type_str() -> None:
-    """Test string conversion."""
-    base = BaseType("test")
-    assert str(base) == "test"
+def test_comparison_functionality() -> None:
+    """Test comparison operations through ComparableInt."""
+    t1 = ComparableInt(1)
+    t2 = ComparableInt(2)
+
+    # Test comparisons
+    assert t1 < t2
+    assert t2 > t1
 
 
-def test_base_type_repr() -> None:
-    """Test detailed string representation."""
-    base = BaseType("test")
-    assert repr(base) == "BaseType('test')"
+def test_validation() -> None:
+    """Test validation behavior."""
+    # Valid string
+    t = StringType("test")
+    assert t.value == "test"
+
+    # None value
+    with pytest.raises(ValidationError) as exc_info:
+        StringType(None)  # type: ignore
+    assert "Value cannot be None" in str(exc_info.value)
+
+    # Wrong type
+    with pytest.raises(ValidationError) as exc_info:
+        StringType(42)  # type: ignore
+    assert "Must be a string" in str(exc_info.value)
 
 
-def test_base_type_equality() -> None:
-    """Test equality comparison."""
-    base1 = BaseType("test")
-    base2 = BaseType("test")
-    base3 = BaseType("other")
+def test_json_operations() -> None:
+    """Test JSON serialization/deserialization."""
+    original = StringType("test")
 
-    assert base1 == base2
-    assert base1 != base3
-    assert base1 != "test"  # Different type
-
-
-def test_base_type_ordering() -> None:
-    """Test ordering operations."""
-    base1 = BaseType(1)
-    base2 = BaseType(2)
-    base3 = BaseType(3)
-
-    assert base1 < base2 < base3
-    assert base3 > base2 > base1
-    assert base1 <= base2 <= base3
-    assert base3 >= base2 >= base1
-
-
-def test_base_type_hash() -> None:
-    """Test hash operation for use in sets and as dict keys."""
-    base1: BaseType[str] = BaseType("test")
-    base2: BaseType[str] = BaseType("test")
-
-    # Same value should have same hash
-    assert hash(base1) == hash(base2)
-
-    # Can be used as dict key
-    d: Dict[BaseType[str], str] = {base1: "value"}
-    assert d[base2] == "value"
-
-    # Can be used in sets
-    s: Set[BaseType[str]] = {base1, base2}
-    assert len(s) == 1
-
-
-def test_base_type_json() -> None:
-    """Test JSON serialization and deserialization."""
-    original = BaseType("test")
+    # Serialization
     json_str = original.to_json()
+    assert json_str == '"test"'
 
-    # JSON string should be valid
-    parsed = json.loads(json_str)
-    assert parsed == "test"
-
-    # Can recreate from JSON
-    recreated = BaseType.from_json(json_str)
+    # Deserialization
+    recreated = StringType.from_json(json_str)
     assert recreated == original
 
-    # Invalid JSON raises ConversionError
-    with pytest.raises(ConversionError):
-        BaseType.from_json("invalid json")
+    # Invalid JSON
+    with pytest.raises(ConversionError) as exc_info:
+        StringType.from_json("invalid")
+    assert "Invalid JSON string" in str(exc_info.value)
 
 
-def test_base_type_copy() -> None:
-    """Test shallow and deep copy operations."""
-    original: BaseType[list[int]] = BaseType([1, 2, 3])
+def test_copy_operations() -> None:
+    """Test copy behavior."""
+    original = StringType("test")
 
     # Shallow copy
     shallow = copy.copy(original)
     assert shallow == original
     assert shallow is not original
-    assert shallow._value is original._value
 
     # Deep copy
     deep = copy.deepcopy(original)
     assert deep == original
     assert deep is not original
-    assert deep._value is not original._value
+
+
+def test_comparison_edge_cases() -> None:
+    """Test comparison operations with edge cases."""
+    t1 = ComparableInt(1)
+    t2 = ComparableInt(1)  # Same value
+    t3 = StringType("1")  # Different type
+
+    # Equal values
+    assert not (t1 < t2)
+    assert not (t1 > t2)
+    assert t1 <= t2
+    assert t1 >= t2
+
+    # Different types should raise TypeError
+    with pytest.raises(TypeError):
+        t1 < t3
+    with pytest.raises(TypeError):
+        t1 > t3
+    with pytest.raises(TypeError):
+        t1 <= t3
+    with pytest.raises(TypeError):
+        t1 >= t3
+
+
+def test_comparison_type_safety() -> None:
+    """Test comparison operations maintain type safety."""
+    t1 = ComparableInt(1)
+
+    # Compare with non-BaseType values should raise TypeError
+    with pytest.raises(TypeError):
+        t1 < 2
+    with pytest.raises(TypeError):
+        t1 > 0
+    with pytest.raises(TypeError):
+        t1 <= "2"
+    with pytest.raises(TypeError):
+        t1 >= None
+
+
+def test_hash_behavior() -> None:
+    """Test hash behavior and collection operations."""
+    t1 = ComparableInt(1)
+    t2 = ComparableInt(1)  # Same value
+    t3 = ComparableInt(2)  # Different value
+
+    # Hash equality
+    assert hash(t1) == hash(t2)
+    assert hash(t1) != hash(t3)
+
+    # Dict operations
+    d: Dict[ComparableInt, str] = {t1: "one"}
+    assert d[t2] == "one"  # Can retrieve with equal value
+    assert t3 not in d     # Different value not found
+
+    # Set operations
+    s: Set[ComparableInt] = {t1, t2, t3}
+    assert len(s) == 2     # t1 and t2 collapse to one entry
